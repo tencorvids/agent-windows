@@ -1,0 +1,5 @@
+Broker: "mqtts://harmonyconnected.com:8883"
+Username: ""
+Password: ""
+DeviceID: "1234"
+PollIntervalSeconds: 30

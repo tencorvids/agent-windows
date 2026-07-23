@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build Windows binary
+        run: GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o HarmonyAgent.exe .
+
+      - name: Generate checksums
+        run: sha256sum HarmonyAgent.exe install.ps1 > checksums.txt
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          make_latest: true
+          files: |
+            HarmonyAgent.exe
+            install.ps1
+            checksums.txt
