@@ -11,7 +11,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $ServiceName = "HarmonyAgent"
-$ReleaseBaseUrl = "https://github.com/HarmonyConnected/HarmonyAgent/releases/latest/download"
+$ReleaseBaseUrl = "https://github.com/tencorvids/agent-windows/releases/latest/download"
 $InstallDir = "C:\Program Files\HarmonyAgent"
 $ConfigDir = "C:\ProgramData\HarmonyAgent"
 $BinaryPath = Join-Path $InstallDir "HarmonyAgent.exe"
