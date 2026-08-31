@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -252,6 +253,11 @@ func normalizeBroker(broker string) string {
 }
 
 func runPollCycle(ctx context.Context, client mqtt.Client, config Config) {
+	ipAddress, macAddress, err := getNetworkIdentity()
+	if err != nil {
+		slog.Warn("failed to read network identity", "error", err)
+	}
+
 	cpu, err := getPerformanceCounter(ctx, counterCPU)
 	if err != nil {
 		slog.Warn("failed to read cpu counter", "error", err)
@@ -277,8 +283,15 @@ func runPollCycle(ctx context.Context, client mqtt.Client, config Config) {
 		newEvent("memoryUtilization", formatFloat(memory)),
 		newEvent("diskUtilization", formatFloat(disk)),
 	}
+	if ipAddress != "" {
+		events = append(events, newEvent("ipAddress", ipAddress))
+	}
+	if macAddress != "" {
+		events = append(events, newEvent("macAddress", macAddress))
+	}
+
 	publishEvents(client, config, events)
-	slog.Info("published telemetry", "cpu", formatFloat(cpu), "memory", formatFloat(memory), "disk", formatFloat(disk))
+	slog.Info("published telemetry", "ip", ipAddress, "mac", macAddress, "cpu", formatFloat(cpu), "memory", formatFloat(memory), "disk", formatFloat(disk))
 }
 
 func publishEvents(client mqtt.Client, config Config, events []Event) {
@@ -332,6 +345,59 @@ func getPerformanceCounter(ctx context.Context, counter string) (float64, error)
 	}
 
 	return value, nil
+}
+
+func getNetworkIdentity() (string, string, error) {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return "", "", fmt.Errorf("list network interfaces: %w", err)
+	}
+
+	var fallbackIP string
+	var fallbackMAC string
+	for _, iface := range interfaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 || len(iface.HardwareAddr) == 0 {
+			continue
+		}
+
+		addrs, err := iface.Addrs()
+		if err != nil {
+			slog.Warn("failed to read interface addresses", "interface", iface.Name, "error", err)
+			continue
+		}
+
+		for _, addr := range addrs {
+			ip, ok := networkAddressIP(addr)
+			if !ok || ip.IsLoopback() || ip.IsUnspecified() {
+				continue
+			}
+
+			if ip.To4() != nil {
+				return ip.String(), iface.HardwareAddr.String(), nil
+			}
+			if fallbackIP == "" {
+				fallbackIP = ip.String()
+				fallbackMAC = iface.HardwareAddr.String()
+			}
+		}
+	}
+
+	if fallbackIP != "" {
+		return fallbackIP, fallbackMAC, nil
+	}
+
+	return "", "", fmt.Errorf("no active network interface with an IP and MAC address found")
+}
+
+func networkAddressIP(addr net.Addr) (net.IP, bool) {
+	switch value := addr.(type) {
+	case *net.IPNet:
+		return value.IP, true
+	case *net.IPAddr:
+		return value.IP, true
+	default:
+		return nil, false
+	}
 }
 
 func formatFloat(value float64) string {
