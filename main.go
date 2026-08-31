@@ -79,7 +79,10 @@ func main() {
 		DisplayName: serviceDisplayName,
 		Description: serviceDescription,
 		Arguments:   []string{"-config", configPath},
-		Option:      service.KeyValue{"StartType": "automatic"},
+		Option: service.KeyValue{
+			"StartType":        "automatic",
+			"DelayedAutoStart": true,
+		},
 	}
 
 	prg := &program{configPath: configPath}
